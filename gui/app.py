@@ -5,6 +5,7 @@ import customtkinter as ctk
 from gui.data_setup import setup_dummy_data
 from gui.screens.pin_screen import PinScreen
 from gui.screens.dashboard import DashboardScreen
+from gui.utils import DEVELOPER_NAME
 
 
 class ATMApp(ctk.CTk):

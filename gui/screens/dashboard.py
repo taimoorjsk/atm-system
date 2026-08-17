@@ -2,7 +2,7 @@
 
 import customtkinter as ctk
 
-from gui.utils import format_currency, account_type_label
+from gui.utils import format_currency, account_type_label, DEVELOPER_NAME
 from gui.screens.dialogs import (
     DepositDialog,
     WithdrawDialog,
@@ -117,6 +117,13 @@ class DashboardScreen(ctk.CTkFrame):
             btn.grid(row=row, column=col, padx=8, pady=8, sticky="nsew")
             actions.grid_columnconfigure(col, weight=1)
             actions.grid_rowconfigure(row, weight=1)
+
+        ctk.CTkLabel(
+            self,
+            text=f"Developed by {DEVELOPER_NAME}",
+            font=ctk.CTkFont(size=11),
+            text_color="gray50",
+        ).pack(side="bottom", pady=(0, 12))
 
         self._build_account_buttons()
 

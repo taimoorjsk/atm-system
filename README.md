@@ -96,7 +96,7 @@ User clicks "Withdraw"
 
 | Library | Pros | Cons |
 |---------|------|------|
-| **CustomTkinter** ✅ | Modern dark theme, zero licensing issues, pip install, great for demos | Less powerful than Qt for huge apps |
+| **CustomTkinter**  | Modern dark theme, zero licensing issues, pip install, great for demos | Less powerful than Qt for huge apps |
 | PyQt6 / PySide6 | Very powerful, native widgets | Steeper learning curve, licensing considerations |
 | Tkinter (plain) | Built-in | Looks dated |
 

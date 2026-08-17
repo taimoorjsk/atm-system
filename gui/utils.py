@@ -12,6 +12,8 @@ from exceptions import (
     AccountInactiveError,
 )
 
+DEVELOPER_NAME = "M. Taimoor Jahangir"
+
 
 def format_currency(amount: float) -> str:
     return f"Rs. {amount:,.2f}"

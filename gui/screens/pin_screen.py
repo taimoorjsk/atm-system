@@ -3,7 +3,7 @@
 import customtkinter as ctk
 
 from exceptions import CardBlockedError, InvalidPINError
-from gui.utils import show_error
+from gui.utils import show_error, DEVELOPER_NAME
 
 
 class PinScreen(ctk.CTkFrame):
@@ -26,6 +26,13 @@ class PinScreen(ctk.CTkFrame):
             text="ATM System",
             font=ctk.CTkFont(size=28, weight="bold"),
         ).pack(pady=(32, 4))
+
+        ctk.CTkLabel(
+            container,
+            text=f"Developed by {DEVELOPER_NAME}",
+            font=ctk.CTkFont(size=12),
+            text_color="gray60",
+        ).pack(pady=(0, 4))
 
         ctk.CTkLabel(
             container,
