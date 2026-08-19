@@ -7,6 +7,20 @@ from tkinter import Canvas, messagebox
 
 from banking import BankService
 from database import Database
+from gui.animations.boot import BootScreen
+from gui.animations.config import (
+    APP_EXIT_DURATION,
+    DASHBOARD_ENTER_DURATION,
+    DASHBOARD_EXIT_DURATION,
+    DASHBOARD_STAGGER,
+    MODAL_ENTRANCE_DURATION,
+    PANEL_ENTRANCE_DURATION,
+    SESSION_TRANSITION_DURATION,
+)
+from gui.animations.logo import LogoReveal
+from gui.animations.manager import AnimationManager
+from gui.animations.easing import ease_in_out
+from gui.animations.transitions import move_placed, slide_from_corner, slide_in
 
 
 BG = "#050912"
@@ -154,14 +168,46 @@ class PersistentATMApp(ctk.CTk):
         self.configure(fg_color=BG)
         self.bank = BankService(Database())
         self.account_number = ""
-        self.login_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.login_frame.pack(expand=True, fill="both")
-        self._build_login(first_run=not self.bank.database.has_accounts())
+        self.animations = AnimationManager(self)
         self.protocol("WM_DELETE_WINDOW", self._close)
+        self._show_boot()
 
     def _close(self):
+        self.animations.cancel_all()
         self.bank.database.close()
-        self.destroy()
+        self.animations.animate(
+            APP_EXIT_DURATION,
+            lambda progress: self._set_window_opacity(1.0 - progress),
+            ease_in_out,
+            self.destroy,
+        )
+
+    def _set_window_opacity(self, opacity: float):
+        try:
+            self.attributes("-alpha", opacity)
+        except ctk.TclError:
+            # Some window managers do not expose opacity; closing still works.
+            pass
+
+    def _show_boot(self):
+        self._clear()
+        self.boot_screen = BootScreen(self, self._palette(), self._finish_boot)
+        self.boot_screen.pack(expand=True, fill="both")
+
+    def _palette(self):
+        return {
+            "BG": BG,
+            "TEXT": TEXT,
+            "MUTED": MUTED,
+            "CYAN": CYAN,
+        }
+
+    def _finish_boot(self):
+        if getattr(self, "boot_screen", None) is not None:
+            self.boot_screen.stop()
+            self.boot_screen.destroy()
+            self.boot_screen = None
+        self._build_login(first_run=not self.bank.database.has_accounts())
 
     def _theme_button_text(self):
         return "LIGHT MODE" if self.theme_mode == "dark" else "DARK MODE"
@@ -179,16 +225,18 @@ class PersistentATMApp(ctk.CTk):
         self._build_login(first_run=not self.bank.database.has_accounts())
 
     def _clear(self):
+        self.animations.cancel_all()
         if getattr(self, "tip_card", None) is not None:
-            self.tip_card.destroy()
+            if self.tip_card.winfo_exists():
+                self.tip_card.destroy()
             self.tip_card = None
         for widget in self.winfo_children():
-            widget.pack_forget()
+            widget.destroy()
 
     def _show_tip(self, title, message):
         """Show a dismissible banking-safety tip in the lower-right corner."""
         if getattr(self, "tip_card", None) is not None:
-            self.tip_card.destroy()
+            self._dismiss_tip()
 
         self.tip_card = ctk.CTkFrame(
             self,
@@ -199,7 +247,7 @@ class PersistentATMApp(ctk.CTk):
             border_width=1,
             border_color=CYAN,
         )
-        self.tip_card.place(relx=0.98, rely=0.96, anchor="se")
+        self.tip_card.place(relx=1.12, rely=0.985, anchor="se")
         self.tip_card.pack_propagate(False)
 
         heading = ctk.CTkFrame(self.tip_card, fg_color="transparent")
@@ -220,11 +268,28 @@ class PersistentATMApp(ctk.CTk):
         close_button.pack(side="right")
         self._label(self.tip_card, title, size=14, weight="bold").pack(anchor="w", padx=16, pady=(6, 1))
         self._label(self.tip_card, message, size=11, color=MUTED, wraplength=285, justify="left").pack(anchor="w", padx=16)
+        self.tip_card.update_idletasks()
+        slide_from_corner(self.animations, self.tip_card, duration=520)
 
     def _dismiss_tip(self):
         if getattr(self, "tip_card", None) is not None:
-            self.tip_card.destroy()
+            tip_card = self.tip_card
             self.tip_card = None
+
+            def remove_tip():
+                if tip_card.winfo_exists():
+                    tip_card.destroy()
+
+            slide_from_corner(
+                self.animations,
+                tip_card,
+                final_relx=1.12,
+                final_rely=0.985,
+                x_distance=-0.14,
+                y_distance=-0.025,
+                duration=220,
+                on_complete=remove_tip,
+            )
 
     def _label(self, master, text, size=13, weight="normal", color=None, **kwargs):
         if color is None:
@@ -271,10 +336,11 @@ class PersistentATMApp(ctk.CTk):
 
     def _build_login(self, first_run=False):
         self._clear()
+        self.login_frame = ctk.CTkFrame(self, fg_color="transparent")
         frame = self.login_frame
         frame.pack(expand=True, fill="both")
         panel = ctk.CTkFrame(frame, width=500, height=610, corner_radius=20, fg_color=SURFACE, border_width=1, border_color=BORDER)
-        panel.place(relx=0.5, rely=0.5, anchor="center")
+        panel.place(relx=0.5, rely=0.58, anchor="center")
         panel.pack_propagate(False)
         self._label(panel, text="ATM BANK", size=34, weight="bold", color=CYAN).pack(pady=(42, 2))
         self._label(panel, text="PERSONAL BANKING / SECURE ACCESS", size=11, weight="bold", color=MUTED).pack(pady=(0, 30))
@@ -294,14 +360,30 @@ class PersistentATMApp(ctk.CTk):
             self._button(panel, "CREATE NEW ACCOUNT", self._create_account_dialog, width=360, primary=False).pack(pady=(0, 36))
         self._button(panel, self._theme_button_text(), self._toggle_theme, width=150, primary=False).pack(pady=(0, 18))
         self._show_tip("Protect your PIN", "Never share your PIN with anyone, even if they claim to be from the bank.")
+        slide_in(self.animations, panel, final_rely=0.5, distance=0.08, duration=PANEL_ENTRANCE_DURATION)
 
     def _login(self):
         try:
             row = self.bank.authenticate(self.login_account.get(), self.login_pin.get())
             self.account_number = row["account_number"]
-            self._build_dashboard(row)
+            self._show_session_transition(row)
         except Exception as exc:
             messagebox.showerror("Sign in failed", str(exc))
+
+    def _show_session_transition(self, row):
+        self._clear()
+        overlay = ctk.CTkFrame(self, fg_color=BG)
+        overlay.pack(expand=True, fill="both")
+        canvas = Canvas(overlay, bg=BG, highlightthickness=0)
+        canvas.pack(expand=True, fill="both")
+        logo = LogoReveal(canvas, self.animations, CYAN, TEXT, BG)
+
+        def finish():
+            if overlay.winfo_exists():
+                overlay.destroy()
+            self._build_dashboard(row)
+
+        logo.reveal(duration=SESSION_TRANSITION_DURATION, on_complete=finish)
 
     def _create_account_dialog(self):
         dialog = ctk.CTkToplevel(self)
@@ -320,7 +402,8 @@ class PersistentATMApp(ctk.CTk):
             scrollbar_button_color=BLUE,
             scrollbar_button_hover_color=BLUE_HOVER,
         )
-        body.pack(expand=True, fill="both", padx=18, pady=18)
+        body.place(relx=0.5, rely=0.54, relwidth=0.93, relheight=0.94, anchor="center")
+        slide_in(self.animations, body, final_rely=0.5, distance=0.05, duration=MODAL_ENTRANCE_DURATION)
         self._label(body, text="Create your account", size=25, weight="bold", color=CYAN).pack(pady=(24, 3))
         self._label(body, text="A few details, then you are ready to bank.", color=MUTED).pack(pady=(0, 22))
         fields = {}
@@ -369,19 +452,20 @@ class PersistentATMApp(ctk.CTk):
     def _build_dashboard(self, row):
         self._clear()
         root = ctk.CTkFrame(self, fg_color=BG)
-        root.pack(expand=True, fill="both", padx=34, pady=26)
+        root.place(relx=0.03, rely=1.08, relwidth=0.94, relheight=0.90)
+        root.pack_propagate(False)
         header = ctk.CTkFrame(root, fg_color="transparent")
-        header.pack(fill="x")
+        header.place(relx=0.0, rely=-0.24, relwidth=1.0, relheight=0.14)
         self._label(header, text="OVERVIEW", size=11, weight="bold", color=CYAN).pack(anchor="w")
         self.greeting = self._label(header, text=f"Good day, {row['name']}", size=28, weight="bold")
         self.greeting.pack(side="left")
         self._button(header, self._theme_button_text(), self._toggle_theme, width=150, primary=False).pack(side="right", padx=(0, 10))
-        self._button(header, "LOG OUT", self._build_login, width=110, primary=False).pack(side="right")
+        self._button(header, "LOG OUT", self._logout, width=110, primary=False).pack(side="right")
 
         content = ctk.CTkFrame(root, fg_color="transparent")
-        content.pack(expand=True, fill="both", pady=(24, 0))
+        content.place(relx=0.0, rely=0.17, relwidth=1.0, relheight=0.78)
         left = ctk.CTkFrame(content, width=360, corner_radius=16, fg_color=SURFACE, border_width=1, border_color=BORDER)
-        left.pack(side="left", fill="y", padx=(0, 18))
+        left.place(relx=-0.42, rely=0.0, relwidth=0.33, relheight=1.0)
         left.pack_propagate(False)
         InteractiveCard(left, row["name"], row["account_number"]).pack(fill="x", padx=18, pady=(18, 2))
         self._label(left, text="AVAILABLE BALANCE", size=11, weight="bold", color=MUTED).pack(anchor="w", padx=26, pady=(12, 6))
@@ -402,13 +486,59 @@ class PersistentATMApp(ctk.CTk):
         action_grid.grid_columnconfigure(1, weight=1)
 
         right = ctk.CTkFrame(content, corner_radius=16, fg_color=SURFACE, border_width=1, border_color=BORDER)
-        right.pack(side="left", expand=True, fill="both")
+        right.place(relx=0.0, rely=0.18, relwidth=0.65, relheight=1.0)
         self._label(right, text="TRANSACTION ACTIVITY", size=11, weight="bold", color=CYAN).pack(anchor="w", padx=26, pady=(26, 4))
         self._label(right, text="Recent account movements", size=18, weight="bold").pack(anchor="w", padx=26, pady=(0, 14))
         self.history = ctk.CTkTextbox(right, height=260, corner_radius=10, border_width=1, border_color=BORDER, fg_color=SURFACE_RAISED, text_color=TEXT, font=ctk.CTkFont(family="Consolas", size=12))
         self.history.pack(fill="both", expand=True, padx=22, pady=(0, 22))
         self._refresh_dashboard()
         self._show_tip("Stay alert", "Check the account number and amount carefully before confirming a transfer.")
+        root.update_idletasks()
+        self.dashboard_root = root
+        self.dashboard_header = header
+        self.dashboard_content = content
+        self.dashboard_left = left
+        self.dashboard_right = right
+        self._animate_dashboard_entrance()
+
+    def _animate_dashboard_entrance(self):
+        """Compose the dashboard from four clear directions."""
+        move_placed(self.animations, self.dashboard_root, 0.03, 1.08, 0.03, 0.03, DASHBOARD_ENTER_DURATION)
+        self.after(DASHBOARD_STAGGER, lambda: move_placed(
+            self.animations, self.dashboard_header, 0.0, -0.24, 0.0, 0.0, 720
+        ))
+        self.after(DASHBOARD_STAGGER * 2, lambda: move_placed(
+            self.animations, self.dashboard_left, -0.42, 0.0, 0.0, 0.0, 900
+        ))
+        self.after(DASHBOARD_STAGGER * 3, lambda: move_placed(
+            self.animations, self.dashboard_right, 0.0, 0.18, 0.35, 0.0, 900
+        ))
+
+    def _logout(self):
+        if not getattr(self, "dashboard_root", None) or not self.dashboard_root.winfo_exists():
+            self.account_number = ""
+            self._build_login(first_run=not self.bank.database.has_accounts())
+            return
+
+        self.account_number = ""
+        self._dismiss_tip()
+        self.animations.cancel_all()
+
+        def finish():
+            if self.dashboard_root.winfo_exists():
+                self.dashboard_root.destroy()
+            self._build_login(first_run=not self.bank.database.has_accounts())
+
+        move_placed(self.animations, self.dashboard_root, 0.03, 0.03, 0.03, 1.08, DASHBOARD_EXIT_DURATION, finish)
+        self.after(DASHBOARD_STAGGER, lambda: move_placed(
+            self.animations, self.dashboard_header, 0.0, 0.0, 0.0, -0.24, 620
+        ))
+        self.after(DASHBOARD_STAGGER * 2, lambda: move_placed(
+            self.animations, self.dashboard_left, 0.0, 0.0, -0.42, 0.0, 720
+        ))
+        self.after(DASHBOARD_STAGGER * 3, lambda: move_placed(
+            self.animations, self.dashboard_right, 0.35, 0.0, 0.0, 0.18, 720
+        ))
 
     def _refresh_dashboard(self):
         row = self.bank.database.get_account(self.account_number)
@@ -429,9 +559,10 @@ class PersistentATMApp(ctk.CTk):
         dialog.transient(self)
         dialog.grab_set()
         body = ctk.CTkFrame(dialog, corner_radius=16, fg_color=SURFACE, border_width=1, border_color=BORDER)
-        body.pack(expand=True, fill="both", padx=16, pady=16)
+        body.place(relx=0.5, rely=0.56, relwidth=0.93, relheight=0.90, anchor="center")
         self._label(body, title.upper(), size=22, weight="bold", color=CYAN).pack(pady=(22, 2))
         self._label(body, subtitle, size=12, color=MUTED).pack(pady=(0, 20))
+        slide_in(self.animations, body, final_rely=0.5, distance=0.06, duration=MODAL_ENTRANCE_DURATION)
         return dialog, body
 
     def _dialog_buttons(self, body, submit, cancel):
