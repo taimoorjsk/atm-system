@@ -31,3 +31,11 @@ class DailyLimitExceededError(Exception):
 class InvalidAccountError(Exception):
     def __init__(self, message="The specified account does not exist or is invalid."):
         super().__init__(message)
+
+class AccountNotFoundError(Exception):
+    def __init__(self, message="The specified account could not be found."):
+        super().__init__(message)
+
+class AccountClosedError(Exception):
+    def __init__(self, message="This account is closed and cannot be used."):
+        super().__init__(message)

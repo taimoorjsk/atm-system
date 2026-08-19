@@ -102,8 +102,8 @@ def main():
     if "--console" in sys.argv:
         run_console()
     else:
-        from gui.app import run_gui
-        run_gui()
+        from gui.persistent_app import run_persistent_gui
+        run_persistent_gui()
 
 
 if __name__ == "__main__":

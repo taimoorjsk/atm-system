@@ -1,6 +1,8 @@
-# ATM System — Class-Based OOP (Enigmatix Assignment)
+# ATM System — Persistent Banking Application
 
-A fully decoupled ATM backend built with Python OOP principles, now with a modern **CustomTkinter** GUI.
+A beginner-friendly ATM and personal banking system built with Python OOP, SQLite, custom exceptions, and CustomTkinter.
+
+The active persistent backend is implemented in `database.py` and `banking.py`. The original in-memory GUI remains available while the persistent GUI migration is completed in small, testable stages.
 
 ---
 
@@ -30,7 +32,19 @@ Or directly:
 python -m gui.app
 ```
 
-### 4. Demo credentials
+### 4. First run
+
+Start the application and choose **Create new account**. The GUI generates the account number and stores the PIN as a salted hash. Log in with that account number and PIN afterward.
+
+### 5. Persistent backend tests
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+The first application start creates `data/atm.db` and its tables automatically. SQLite is part of Python's standard library, so no database server is required.
+
+### 6. Legacy demo credentials
 
 | Item | Value |
 |------|-------|
@@ -38,7 +52,7 @@ python -m gui.app
 | **Savings Account** | `1001` — Rs. 25,000 |
 | **Current Account** | `2001` — Rs. 10,000 |
 
-### 5. Console mode (optional)
+### 7. Console mode (optional)
 
 The original text interface is still available:
 
@@ -58,6 +72,10 @@ atm-system/
 ├── transactions.py    # Transaction hierarchy (Deposit, Withdraw, Transfer)
 ├── atm.py             # ATM controller (cash dispensing, transaction processing)
 ├── main.py            # Launcher (GUI by default, --console for text mode)
+├── database.py        # SQLite schema, parameterized queries, PIN hashing
+├── banking.py         # Persistent account and transaction service
+├── data/atm.db        # Created automatically at runtime
+├── tests/test_banking.py # Backend workflow tests
 ├── gui/               # Graphical interface (does NOT modify backend)
 │   ├── app.py         # Main window & screen navigation
 │   ├── data_setup.py  # Dummy data factory
@@ -68,6 +86,15 @@ atm-system/
 │       └── dialogs.py       # Deposit, Withdraw, Transfer, PIN, Statement
 └── requirements.txt
 ```
+
+### Database tables
+
+- `customers` stores profile details.
+- `accounts` stores account type, balance, status, and creation time.
+- `cards` stores a salted PBKDF2 PIN hash and failed-attempt state, never the plaintext PIN.
+- `transactions` stores immutable transaction records and related account numbers.
+
+`BankService` is the boundary between the domain classes and SQLite. It validates input, loads the appropriate `SavingsAccount` or `CurrentAccount`, delegates business rules to that object, then persists the new balance and transaction record.
 
 ### OOP Principles in Practice
 
@@ -111,6 +138,8 @@ User clicks "Withdraw"
 3. **Deposit / Withdraw / Transfer** — Modal dialogs with validation
 4. **Change PIN** — Syncs card + account PIN
 5. **Mini Statement** — Last 5 transactions in monospace view
+
+The persistent GUI is the default launcher. The original in-memory GUI screens remain in `gui/screens/` as a reference for the first assignment version. The persistent service is covered independently by the backend tests.
 
 ---
 
@@ -163,6 +192,8 @@ Try these to verify the system:
 4. Transfer Rs. 2,000 from `1001` → `2001` → both balances update
 5. Withdraw Rs. 1,500 → fails (not multiple of 500)
 6. Run a few transactions, then open Mini Statement
+
+Automated coverage currently includes account creation, salted PIN verification, three-attempt lockout, deposits, withdrawals, transfers, transaction history, invalid amounts, and soft account closure.
 
 ---
 
